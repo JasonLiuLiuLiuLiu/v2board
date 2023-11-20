@@ -61,7 +61,9 @@ class V2boardInstall extends Command
                 'DB_HOST' => $this->ask('请输入数据库地址（默认:localhost）', 'localhost'),
                 'DB_DATABASE' => $this->ask('请输入数据库名'),
                 'DB_USERNAME' => $this->ask('请输入数据库用户名'),
-                'DB_PASSWORD' => $this->ask('请输入数据库密码')
+                'DB_PASSWORD' => $this->ask('请输入数据库密码'),
+                'DB_PORT' => $this->ask('请输入数据库端口'),
+                'REDIS_URL' => $this->ask('请输入Redis Url'),
             ]);
             \Artisan::call('config:clear');
             \Artisan::call('config:cache');

@@ -47,7 +47,7 @@ class AppController extends Controller
                 array_push($proxies, $item['name']);
             }
             if ($item['type'] === 'trojan') {
-                array_push($proxy, \App\Http\Controllers\V1\Client\Protocols\Clash::buildTrojan($user['uuid'], $item));
+                array_push($proxy, \App\Protocols\Clash::buildTrojan($user['uuid'], $item));
                 array_push($proxies, $item['name']);
             }
         }
@@ -56,7 +56,9 @@ class AppController extends Controller
         foreach ($config['proxy-groups'] as $k => $v) {
             $config['proxy-groups'][$k]['proxies'] = array_merge($config['proxy-groups'][$k]['proxies'], $proxies);
         }
-        die(Yaml::dump($config));
+        $yamlContent = Yaml::dump($config);
+        return response($yamlContent, 200)
+            ->header('Content-Type', 'text/yaml');
     }
 
     public function getVersion(Request $request)

@@ -89,11 +89,16 @@ class AdminRoute
             $router->post('/user/sendMail', 'V1\\Admin\\UserController@sendMail');
             $router->post('/user/ban', 'V1\\Admin\\UserController@ban');
             $router->post('/user/resetSecret', 'V1\\Admin\\UserController@resetSecret');
+            $router->post('/user/delUser', 'V1\\Admin\\UserController@delUser');
+            $router->post('/user/allDel', 'V1\\Admin\\UserController@allDel');
             $router->post('/user/setInviteUser', 'V1\\Admin\\UserController@setInviteUser');
             // Stat
             $router->get ('/stat/getStat', 'V1\\Admin\\StatController@getStat');
             $router->get ('/stat/getOverride', 'V1\\Admin\\StatController@getOverride');
             $router->get ('/stat/getServerLastRank', 'V1\\Admin\\StatController@getServerLastRank');
+            $router->get ('/stat/getServerTodayRank', 'V1\\Admin\\StatController@getServerTodayRank');
+            $router->get ('/stat/getUserLastRank', 'V1\\Admin\\StatController@getUserLastRank');
+            $router->get ('/stat/getUserTodayRank', 'V1\\Admin\\StatController@getUserTodayRank');
             $router->get ('/stat/getOrder', 'V1\\Admin\\StatController@getOrder');
             $router->get ('/stat/getStatUser', 'V1\\Admin\\StatController@getStatUser');
             $router->get ('/stat/getRanking', 'V1\\Admin\\StatController@getRanking');
@@ -113,6 +118,10 @@ class AdminRoute
             $router->post('/coupon/generate', 'V1\\Admin\\CouponController@generate');
             $router->post('/coupon/drop', 'V1\\Admin\\CouponController@drop');
             $router->post('/coupon/show', 'V1\\Admin\\CouponController@show');
+            // Giftcard
+            $router->get ('/giftcard/fetch', 'V1\\Admin\\GiftcardController@fetch');
+            $router->post('/giftcard/generate', 'V1\\Admin\\GiftcardController@generate');
+            $router->post('/giftcard/drop', 'V1\\Admin\\GiftcardController@drop');
             // Knowledge
             $router->get ('/knowledge/fetch', 'V1\\Admin\\KnowledgeController@fetch');
             $router->get ('/knowledge/getCategory', 'V1\\Admin\\KnowledgeController@getCategory');

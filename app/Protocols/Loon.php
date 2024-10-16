@@ -32,14 +32,14 @@ class Loon
                 ])
             ) {
                 $uri .= self::buildShadowsocks($user['uuid'], $item);
-            }
-            if ($item['type'] === 'vmess') {
+            }elseif ($item['type'] === 'vmess') {
                 $uri .= self::buildVmess($user['uuid'], $item);
-            }elseif ($item['type'] === 'vless') {
+            }elseif ($item['type'] === 'vless' && !$item['flow'] ) { // loon 不支持流控,需要过滤掉
                 $uri .= self::buildVless($user['uuid'], $item);
-            }
-            if ($item['type'] === 'trojan') {
+            }elseif ($item['type'] === 'trojan') {
                 $uri .= self::buildTrojan($user['uuid'], $item);
+            }elseif ($item['type'] === 'hysteria' && $item['version'] === 2) { //loon只支持hysteria2
+                $uri .= self::buildHysteria($user['uuid'], $item);
             }
         }
         return $uri;
@@ -80,12 +80,12 @@ class Loon
             array_push($config, 'transport=tcp');
             if ($server['networkSettings']) {
                 $tcpSettings = $server['networkSettings'];
-                if (isset($tcpSettings['header']['type']) && !empty($tcpSettings['header']['type']))
+                if (isset($tcpSettings['header']['type']) && !empty($tcpSettings['header']['type']) && $tcpSettings['header']['type'] == 'http')
                     $config = str_replace('transport=tcp', "transport={$tcpSettings['header']['type']}", $config);
                 if (isset($tcpSettings['header']['request']['path'][0]) && !empty($tcpSettings['header']['request']['path'][0]))
                     array_push($config, "path={$tcpSettings['header']['request']['path'][0]}");
-                if (isset($tcpSettings['header']['Host']) && !empty($tcpSettings['header']['Host']))
-                    array_push($config, "host={$tcpSettings['header']['Host']}");
+                if (isset($tcpSettings['header']['request']['headers']['Host'][0]) && !empty($tcpSettings['header']['request']['headers']['Host'][0]))
+                    array_push($config, "host={$tcpSettings['header']['request']['headers']['Host'][0]}");
             }
         }
         if ($server['tls']) {
@@ -130,12 +130,12 @@ class Loon
             array_push($config, 'transport=tcp');
             if ($server['network_settings']) {
                 $tcpSettings = $server['network_settings'];
-                if (isset($tcpSettings['header']['type']) && !empty($tcpSettings['header']['type']))
+                if (isset($tcpSettings['header']['type']) && !empty($tcpSettings['header']['type']) && $tcpSettings['header']['type'] == 'http')
                     $config = str_replace('transport=tcp', "transport={$tcpSettings['header']['type']}", $config);
                 if (isset($tcpSettings['header']['request']['path'][0]) && !empty($tcpSettings['header']['request']['path'][0]))
                     array_push($config, "path={$tcpSettings['header']['request']['path'][0]}");
-                if (isset($tcpSettings['header']['Host']) && !empty($tcpSettings['header']['Host']))
-                    array_push($config, "host={$tcpSettings['header']['Host']}");
+                if (isset($tcpSettings['header']['request']['headers']['Host'][0]) && !empty($tcpSettings['header']['request']['headers']['Host'][0]))
+                    array_push($config, "host={$tcpSettings['header']['request']['headers']['Host'][0]}");
             }
         }
         if ($server['tls'] === 1) {
@@ -181,6 +181,47 @@ class Loon
         ];
         if (!empty($server['allow_insecure'])) {
             array_push($config, $server['allow_insecure'] ? 'skip-cert-verify=true' : 'skip-cert-verify=false');
+        }
+        if (isset($server['network']) && (string)$server['network'] === 'ws') {
+            array_push($config, 'ws=true');
+            if ($server['network_settings']) {
+                $wsSettings = $server['network_settings'];
+                if (isset($wsSettings['path']) && !empty($wsSettings['path']))
+                    array_push($config, "ws-path={$wsSettings['path']}");
+                if (isset($wsSettings['headers']['Host']) && !empty($wsSettings['headers']['Host']))
+                    array_push($config, "ws-headers=Host:{$wsSettings['headers']['Host']}");
+            }
+        }
+        $config = array_filter($config);
+        $uri = implode(',', $config);
+        $uri .= "\r\n";
+        return $uri;
+    }
+    
+    public static function buildHysteria($password, $server)
+    {
+
+        $parts = explode(",",$server['port']);
+        $firstPart = $parts[0];
+        if (strpos($firstPart, '-') !== false) {
+            $range = explode('-', $firstPart);
+            $firstPort = $range[0];
+        } else {
+            $firstPort = $firstPart;
+        }
+
+        $config = [
+            "{$server['name']}=hysteria2",
+            "{$server['host']}",
+            "{$firstPort}",
+            "password={$password}",
+            "download-bandwidth={$server['up_mbps']}",
+            $server['server_name'] ? "sni={$server['server_name']}" : "",
+            // 'tfo=true', 
+            'udp-relay=true'
+        ];
+        if (!empty($server['insecure'])) {
+            array_push($config, $server['insecure'] ? 'skip-cert-verify=true' : 'skip-cert-verify=false');
         }
         $config = array_filter($config);
         $uri = implode(',', $config);

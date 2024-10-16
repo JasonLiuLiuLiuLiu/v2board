@@ -24,7 +24,7 @@ class KnowledgeController extends Controller
             if (!$userService->isAvailable($user)) {
                 $this->formatAccessData($knowledge['body']);
             }
-            $subscribeUrl = Helper::getSubscribeUrl("/api/v1/client/subscribe?token={$user['token']}");
+            $subscribeUrl = Helper::getSubscribeUrl($user['token']);
             $knowledge['body'] = str_replace('{{siteName}}', config('v2board.app_name', 'V2Board'), $knowledge['body']);
             $knowledge['body'] = str_replace('{{subscribeUrl}}', $subscribeUrl, $knowledge['body']);
             $knowledge['body'] = str_replace('{{urlEncodeSubscribeUrl}}', urlencode($subscribeUrl), $knowledge['body']);
@@ -60,11 +60,16 @@ class KnowledgeController extends Controller
         ]);
     }
 
+    private function getBetween($input, $start, $end)
+    {
+        $substr = substr($input, strlen($start) + strpos($input, $start), (strlen($input) - strpos($input, $end)) * (-1));
+        return $start . $substr . $end;
+    }
+
     private function formatAccessData(&$body)
     {
-        function getBetween($input, $start, $end){$substr = substr($input, strlen($start)+strpos($input, $start),(strlen($input) - strpos($input, $end))*(-1));return $start . $substr . $end;}
         while (strpos($body, '<!--access start-->') !== false) {
-            $accessData = getBetween($body, '<!--access start-->', '<!--access end-->');
+            $accessData = $this->getBetween($body, '<!--access start-->', '<!--access end-->');
             if ($accessData) {
                 $body = str_replace($accessData, '<div class="v2board-no-access">'. __('You must have a valid subscription to view content in this area') .'</div>', $body);
             }

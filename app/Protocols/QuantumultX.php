@@ -73,11 +73,13 @@ class QuantumultX
                     $host = $tlsSettings['serverName'];
             }
         }
+
         if ($server['network'] === 'ws') {
-            if ($server['tls'])
+            if ($server['tls']) {
                 array_push($config, 'obfs=wss');
-            else
+            } else {                
                 array_push($config, 'obfs=ws');
+            }
             if ($server['networkSettings']) {
                 $wsSettings = $server['networkSettings'];
                 if (isset($wsSettings['path']) && !empty($wsSettings['path']))
@@ -86,6 +88,7 @@ class QuantumultX
                     $host = $wsSettings['headers']['Host'];
             }
         }
+
         if (isset($host)) {
             array_push($config, "obfs-host={$host}");
         }
@@ -100,14 +103,30 @@ class QuantumultX
         $config = [
             "trojan={$server['host']}:{$server['port']}",
             "password={$password}",
-            'over-tls=true',
-            $server['server_name'] ? "tls-host={$server['server_name']}" : "",
             // Tips: allowInsecure=false = tls-verification=true
             $server['allow_insecure'] ? 'tls-verification=false' : 'tls-verification=true',
             'fast-open=true',
             'udp-relay=true',
             "tag={$server['name']}"
         ];
+        $host = $server['server_name'] ?? $server['host'];
+        // The obfs field is only supported with websocket over tls for trojan. When using websocket over tls you should not set over-tls and tls-host options anymore, instead set obfs=wss and obfs-host options.
+        if ($server['network'] === 'ws') {
+            array_push($config, 'obfs=wss');
+            if ($server['network_settings']) {
+                $wsSettings = $server['network_settings'];
+                if (isset($wsSettings['path']) && !empty($wsSettings['path']))
+                    array_push($config, "obfs-uri={$wsSettings['path']}");
+                if (isset($wsSettings['headers']['Host']) && !empty($wsSettings['headers']['Host'])){
+                    $host = $wsSettings['headers']['Host'];
+                }
+                array_push($config, "obfs-host={$host}");
+            }
+        } else {
+            array_push($config, "over-tls=true");
+            if(isset($server['server_name']) && !empty($server['server_name']))
+                array_push($config, "tls-host={$server['server_name']}");
+        }
         $config = array_filter($config);
         $uri = implode(',', $config);
         $uri .= "\r\n";

@@ -8,7 +8,11 @@ use App\Http\Requests\Admin\UserGenerate;
 use App\Http\Requests\Admin\UserSendMail;
 use App\Http\Requests\Admin\UserUpdate;
 use App\Jobs\SendEmailJob;
+use App\Models\InviteCode;
+use App\Models\Ticket;
+use App\Models\Order;
 use App\Models\Plan;
+use App\Models\TicketMessage;
 use App\Models\User;
 use App\Services\AuthService;
 use App\Utils\Helper;
@@ -48,6 +52,10 @@ class UserController extends Controller
                     unset($filters[$k]);
                     continue;
                 }
+                if ($filter['key'] === 'plan_id' && $filter['value'] == 'null') {
+                    $builder->whereNull('plan_id');
+                    continue;
+                }
                 $builder->where($filter['key'], $filter['condition'], $filter['value']);
             }
         }
@@ -75,14 +83,24 @@ class UserController extends Controller
                     $res[$i]['plan_name'] = $plan[$k]['name'];
                 }
             }
-            $res[$i]['subscribe_url'] = Helper::getSubscribeUrl('/api/v1/client/subscribe?token=' . $res[$i]['token']);
             //统计在线设备
             $countalive = 0;
+            $ips = [];
             $ips_array = Cache::get('ALIVE_IP_USER_'. $res[$i]['id']);
             if ($ips_array) {
                 $countalive = $ips_array['alive_ip'];
+                foreach($ips_array as $nodetypeid => $data) {
+                    if (!is_int($data) && isset($data['aliveips'])) {
+                        foreach($data['aliveips'] as $ip_NodeId) {
+                            $ip = explode("_", $ip_NodeId)[0];
+                            $ips[] = $ip . '_' . $nodetypeid;
+                        }
+                    }
+                }
             }
             $res[$i]['alive_ip'] = $countalive;
+            $res[$i]['ips'] = implode(', ', $ips);
+            $res[$i]['subscribe_url'] = Helper::getSubscribeUrl($res[$i]['token']);
         }
         return response([
             'data' => $res,
@@ -174,8 +192,9 @@ class UserController extends Controller
             $deviceLimit = $user['devce_limit'] ? $user['devce_limit'] : NULL;
             $notUseFlow = (($user['transfer_enable'] - ($user['u'] + $user['d'])) / 1073741824) ?? 0;
             $planName = $user['plan_name'] ?? '无订阅';
-            $subscribeUrl = Helper::getSubscribeUrl('/api/v1/client/subscribe?token=' . $user['token']);
+            $subscribeUrl =  Helper::getSubscribeUrl($user['token']);
             $data .= "{$user['email']},{$balance},{$commissionBalance},{$transferEnable}, {$deviceLimit}, {$notUseFlow},{$expireDate},{$planName},{$subscribeUrl}\r\n";
+
         }
         echo "\xEF\xBB\xBF" . $data;
     }
@@ -251,7 +270,7 @@ class UserController extends Controller
             $expireDate = $user['expired_at'] === NULL ? '长期有效' : date('Y-m-d H:i:s', $user['expired_at']);
             $createDate = date('Y-m-d H:i:s', $user['created_at']);
             $password = $request->input('password') ?? $user['email'];
-            $subscribeUrl = Helper::getSubscribeUrl('/api/v1/client/subscribe?token=' . $user['token']);
+            $subscribeUrl = Helper::getSubscribeUrl($user['token']);
             $data .= "{$user['email']},{$password},{$expireDate},{$user['uuid']},{$createDate},{$subscribeUrl}\r\n";
         }
         echo $data;
@@ -295,6 +314,68 @@ class UserController extends Controller
             ]);
         } catch (\Exception $e) {
             abort(500, '处理失败');
+        }
+
+        return response([
+            'data' => true
+        ]);
+    }
+
+    public function allDel(Request $request)
+    {
+        $sortType = in_array($request->input('sort_type'), ['ASC', 'DESC']) ? $request->input('sort_type') : 'DESC';
+        $sort = $request->input('sort') ? $request->input('sort') : 'created_at';
+        $builder = User::orderBy($sort, $sortType);
+        $this->filter($request, $builder);
+
+        DB::beginTransaction();
+        try {
+            $builder->each(function ($user){
+                Order::where('user_id', $user->id)->delete();
+                InviteCode::where('user_id', $user->id)->delete();
+                $tickets = Ticket::where('user_id', $user->id)->get();
+                foreach($tickets as $ticket) {
+                    TicketMessage::where('ticket_id', $ticket->id)->delete();
+                }
+                Ticket::where('user_id', $user->id)->delete();
+                User::where('invite_user_id', $user->id)->update(['invite_user_id' => null]);
+            });
+            $builder->delete();
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            abort(500, '批量删除用户信息失败');
+        }  
+
+        return response([
+            'data' => true
+        ]);
+    }
+
+    public function delUser(Request $request)
+    {
+        $user = User::find($request->input('id'));
+        if (!$user) {
+            abort(500, '用户不存在');
+        }
+    
+        DB::beginTransaction();
+        try {
+            Order::where('user_id', $request->input('id'))->delete();
+            User::where('invite_user_id', $request->input('id'))->update(['invite_user_id' => null]);
+            InviteCode::where('user_id', $request->input('id'))->delete();
+            
+            $tickets = Ticket::where('user_id', $request->input('id'))->get();
+            foreach($tickets as $ticket) {
+                TicketMessage::where('ticket_id', $ticket->id)->delete();
+            }
+            Ticket::where('user_id', $request->input('id'))->delete();
+    
+            $user->delete();
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            abort(500, '删除用户失败');
         }
 
         return response([
